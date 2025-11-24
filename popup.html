@@ -2,37 +2,169 @@
 <html>
 <head>
   <title>YouTube Rightclick</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   <style>
-    body { width: 400px; font-family: sans-serif; padding: 10px; }
-    h1 { font-size: 16px; margin-top: 0; }
-    textarea { width: 100%; height: 150px; margin-bottom: 10px; box-sizing: border-box; font-family: monospace; font-size: 12px; }
-    button { width: auto; padding: 8px 12px; margin-top: 5px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; }
-    button:disabled { cursor: not-allowed; background-color: #fafafa; color: #999; }
-    #addCurrentVideoButton { background-color: #cce5ff; width: 100%; padding: 10px; }
-    .list-management, .new-list-form { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .list-management select { flex-grow: 1; padding: 5px; }
-    .new-list-form input { flex-grow: 1; padding: 5px; }
-    hr { margin: 15px 0; }
+    :root {
+      --bg-color: #2a2a2e;
+      --primary-color: #3a3a40;
+      --secondary-color: #4a4a50;
+      --text-color: #e0e0e0;
+      --accent-color: #61dafb;
+      --danger-color: #ff6b6b;
+      --border-radius: 8px;
+    }
+
+    body {
+      width: 400px;
+      font-family: 'Roboto', sans-serif;
+      padding: 15px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 500;
+      margin: 0 0 15px 0;
+      text-align: center;
+      color: var(--accent-color);
+    }
+
+    select, input[type="text"] {
+      background-color: var(--primary-color);
+      color: var(--text-color);
+      border: 1px solid var(--secondary-color);
+      padding: 8px;
+      border-radius: var(--border-radius);
+      width: 100%;
+      box-sizing: border-box;
+      transition: all 0.2s ease-in-out;
+    }
+
+    select:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent-color);
+      box-shadow: 0 0 5px rgba(97, 218, 251, 0.5);
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      background-color: var(--primary-color);
+      color: var(--text-color);
+      border: 1px solid var(--secondary-color);
+      border-radius: var(--border-radius);
+      padding: 8px;
+      resize: vertical;
+    }
+
+    button {
+      width: auto;
+      padding: 8px 12px;
+      cursor: pointer;
+      border: none;
+      background-color: var(--secondary-color);
+      color: var(--text-color);
+      border-radius: var(--border-radius);
+      transition: all 0.2s ease-in-out;
+    }
+
+    button:hover {
+      background-color: #5a5a60;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      background-color: var(--primary-color);
+      color: #888;
+    }
+
+    #addCurrentVideoButton {
+      background-color: var(--accent-color);
+      color: var(--bg-color);
+      font-weight: 500;
+      width: 100%;
+      padding: 10px;
+    }
+
+    #addCurrentVideoButton:hover {
+      background-color: #40c3e0;
+    }
+
+    .list-management, .new-list-form {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .list-management select, .new-list-form input {
+      flex-grow: 1;
+    }
+
+    hr {
+      border: none;
+      height: 1px;
+      background-color: var(--secondary-color);
+      margin: 20px 0;
+    }
+
+    .bottom-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    #sheetsLink {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    #sheetsLink:hover {
+      transform: scale(1.1);
+    }
+
+    #sheetsLink img {
+      width: 100%;
+      height: auto;
+    }
+
+    #deleteListButton {
+      background-color: var(--danger-color);
+    }
+
+    #deleteListButton:hover {
+      background-color: #e05252;
+    }
+
     .context-menu {
       display: none;
       position: absolute;
-      background-color: #f9f9f9;
-      border: 1px solid #ddd;
+      background-color: var(--secondary-color);
+      border: 1px solid var(--primary-color);
       box-shadow: 0 2px 5px rgba(0,0,0,0.2);
       padding: 5px 0;
       z-index: 100;
+      border-radius: var(--border-radius);
     }
+
     .context-menu button {
+      background: none;
+      border: none;
+      color: var(--text-color);
       display: block;
-      width: 100%;
       padding: 8px 15px;
       text-align: left;
-      border: none;
-      background: none;
-      cursor: pointer;
+      width: 100%;
     }
+
     .context-menu button:hover {
-      background-color: #eee;
+      background-color: var(--primary-color);
     }
   </style>
 </head>
@@ -60,9 +192,16 @@
     <button id="menuDeleteButton">Delete</button>
   </div>
 
-  <button id="copyButton">Copy to Clipboard</button>
-  <button id="downloadButton">Download List</button>
-  <button id="clearButton">Clear This List</button>
+  <div class="bottom-actions">
+    <div>
+      <button id="copyButton">Copy to Clipboard</button>
+      <button id="downloadButton">Download List</button>
+      <button id="clearButton">Clear This List</button>
+    </div>
+    <a href="https://sheets.google.com" target="_blank" id="sheetsLink" title="Open Google Sheets">
+      <img src="images/google-sheets.svg" alt="Open Google Sheets">
+    </a>
+  </div>
 
   <script src="popup.js"></script>
 </body>
