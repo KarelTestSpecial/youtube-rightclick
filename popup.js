@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization ---
     // 1. Get initial data from storage
-    chrome.storage.local.get({ lists: { 'Default List': [] }, activeList: 'Default List' }, (data) => {
+    chrome.storage.local.get({ lists: { 'A First List': [] }, activeList: 'A First List' }, (data) => {
         state.lists = data.lists;
         state.activeList = data.activeList;
         render();
