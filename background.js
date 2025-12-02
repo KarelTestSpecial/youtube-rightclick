@@ -13,7 +13,7 @@ function normalizeAndSave(videoDetails) {
     const finalDetails = { title: videoDetails.title.trim(), url: cleanUrl };
 
     // Get the current data structure
-    chrome.storage.local.get({ lists: {}, activeList: 'Default List' }, (data) => {
+    chrome.storage.local.get({ lists: {}, activeList: 'A List' }, (data) => {
       let { lists, activeList } = data;
 
       // Ensure the active list exists
@@ -112,8 +112,8 @@ chrome.runtime.onInstalled.addListener(() => {
         if (data.lists === null) { // Only run if 'lists' has never been set
             console.log("First time installation. Setting up default list.");
             chrome.storage.local.set({
-                lists: { 'Default List': [] },
-                activeList: 'Default List'
+                lists: { 'A List': [] },
+                activeList: 'A List'
             });
         }
        });

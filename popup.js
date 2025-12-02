@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization ---
     // 1. Get initial data from storage
-    chrome.storage.local.get({ lists: { 'A First List': [] }, activeList: 'A First List' }, (data) => {
+    chrome.storage.local.get({ lists: { 'A List': [] }, activeList: 'A List' }, (data) => {
         state.lists = data.lists;
         state.activeList = data.activeList;
         render();
@@ -187,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Context Menu Logic ---
     const contextMenu = document.getElementById('contextMenu');
     const menuGoToButton = document.getElementById('menuGoToButton');
+    const menuCopyButton = document.getElementById('menuCopyButton');
     const menuDeleteButton = document.getElementById('menuDeleteButton');
     let selectedRecordIndex = -1;
 
@@ -234,6 +235,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const video = state.lists[state.activeList][selectedRecordIndex];
             if (video && video.url) {
                 chrome.tabs.create({ url: video.url });
+            }
+        }
+        contextMenu.style.display = 'none';
+    });
+
+    // Action: Copy record
+    menuCopyButton.addEventListener('click', () => {
+        if (selectedRecordIndex !== -1) {
+            const video = state.lists[state.activeList][selectedRecordIndex];
+            if (video) {
+                const tsvContent = `${video.title}\t${video.url}`;
+                navigator.clipboard.writeText(tsvContent).then(() => {
+                     // Feedback could be added here (e.g. brief text change), but standard copy behavior is usually silent or system-managed.
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
             }
         }
         contextMenu.style.display = 'none';
