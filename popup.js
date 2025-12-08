@@ -188,6 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const contextMenu = document.getElementById('contextMenu');
     const menuGoToButton = document.getElementById('menuGoToButton');
     const menuCopyButton = document.getElementById('menuCopyButton');
+    const menuMoveUpButton = document.getElementById('menuMoveUpButton');
+    const menuMoveDownButton = document.getElementById('menuMoveDownButton');
     const menuDeleteButton = document.getElementById('menuDeleteButton');
     let selectedRecordIndex = -1;
 
@@ -254,6 +256,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         contextMenu.style.display = 'none';
+    });
+
+    // Action: Move record up
+    menuMoveUpButton.addEventListener('click', () => {
+        if (selectedRecordIndex > 0) {
+            const list = state.lists[state.activeList];
+            const updatedVideos = [...list];
+            [updatedVideos[selectedRecordIndex], updatedVideos[selectedRecordIndex - 1]] = 
+            [updatedVideos[selectedRecordIndex - 1], updatedVideos[selectedRecordIndex]];
+            
+            const newLists = { ...state.lists, [state.activeList]: updatedVideos };
+            chrome.storage.local.set({ lists: newLists });
+            contextMenu.style.display = 'none';
+        }
+    });
+
+    // Action: Move record down
+    menuMoveDownButton.addEventListener('click', () => {
+        const list = state.lists[state.activeList];
+        if (selectedRecordIndex !== -1 && selectedRecordIndex < list.length - 1) {
+            const updatedVideos = [...list];
+            [updatedVideos[selectedRecordIndex], updatedVideos[selectedRecordIndex + 1]] = 
+            [updatedVideos[selectedRecordIndex + 1], updatedVideos[selectedRecordIndex]];
+            
+            const newLists = { ...state.lists, [state.activeList]: updatedVideos };
+            chrome.storage.local.set({ lists: newLists });
+            contextMenu.style.display = 'none';
+        }
     });
 
     // Action: Delete record

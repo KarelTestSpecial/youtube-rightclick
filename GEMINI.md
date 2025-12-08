@@ -37,7 +37,8 @@
 *   **Popup:**
     *   Manage multiple lists (Create/Delete/Switch).
     *   "Add Current Video" button (active when on a YouTube watch page).
-    *   Export lists (Copy to Clipboard / Download `.txt`).
+    *   Textarea with list of video data (context menu for video data: go to video, copy, delete, move up, move down)
+    *   Export lists (Copy to Clipboard / Download `.txt` / Clear List).
     *   Deep link to Google Sheets.
 
 ## Development Conventions

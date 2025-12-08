@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>YouTube Rightclick</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   <style>
@@ -158,10 +159,14 @@
       background: none;
       border: none;
       color: var(--text-color);
-      display: block;
-      padding: 8px 15px;
-      text-align: left;
+      display: flex; /* Make it a flex container */
+      align-items: center; /* Vertically center content */                                 justify-content: space-between; /* Push items to ends */
+      padding: 4px 10px;      
+      gap: 10px; /* Add space between items */
+      /*text-align: left; - Remove this as flex handles alignment */
       width: 100%;
+      font-size: 12px;
+      line-height: 1;
     }
 
     .context-menu button:hover {
@@ -189,9 +194,11 @@
   <textarea id="videoOutput" readonly placeholder="This list is empty."></textarea>
 
   <div id="contextMenu" class="context-menu">
-    <button id="menuGoToButton">Go to Video</button>
-    <button id="menuCopyButton">Copy</button>
-    <button id="menuDeleteButton">Delete</button>
+    <button id="menuGoToButton"><span>Go to Video</span></button>
+    <button id="menuCopyButton"><span>Copy</span></button>
+    <button id="menuDeleteButton"><span>Delete</span></button>
+    <button id="menuMoveUpButton"><span>Move Up</span><span class="arrow">🡩</span></button>
+    <button id="menuMoveDownButton"><span>Move Down</span><span class="arrow">🡫</span></button>
   </div>
 
   <div class="bottom-actions">
