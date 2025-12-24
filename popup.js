@@ -9,11 +9,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyButton = document.getElementById('copyButton');
     const downloadButton = document.getElementById('downloadButton');
     const clearButton = document.getElementById('clearButton');
+    const addPositionToggle = document.getElementById('addPositionToggle');
+    const toggleLabel = document.getElementById('toggleLabel');
 
     // --- State & Render ---
     let state = {
         lists: {},
-        activeList: ''
+        activeList: '',
+        addAtTop: true
     };
 
     const render = () => {
@@ -45,13 +48,18 @@ document.addEventListener('DOMContentLoaded', () => {
         clearButton.disabled = isListEmpty;
         deleteListButton.disabled = listNames.length <= 1; // Can't delete the last list
         videoOutput.placeholder = `List "${activeList}" is empty.`;
+
+        // 4. Update Toggle Switch UI
+        addPositionToggle.checked = state.addAtTop;
+        toggleLabel.textContent = state.addAtTop ? 'Add to Top' : 'Add to Bottom';
     };
 
     // --- Initialization ---
     // 1. Get initial data from storage
-    chrome.storage.local.get({ lists: { 'A List': [] }, activeList: 'A List' }, (data) => {
+    chrome.storage.local.get({ lists: { 'A List': [] }, activeList: 'A List', addAtTop: true }, (data) => {
         state.lists = data.lists;
         state.activeList = data.activeList;
+        state.addAtTop = data.addAtTop;
         render();
     });
 
@@ -73,8 +81,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (changes.activeList) {
                 state.activeList = changes.activeList.newValue;
             }
+            if (changes.addAtTop) {
+                state.addAtTop = changes.addAtTop.newValue;
+            }
             render();
         }
+    });
+
+    // Toggle add position
+    addPositionToggle.addEventListener('change', (e) => {
+        const newAddAtTop = e.target.checked;
+        // Update state directly and re-render immediately, as onChanged doesn't fire in the same script.
+        state.addAtTop = newAddAtTop;
+        chrome.storage.local.set({ addAtTop: newAddAtTop });
+        render();
     });
 
     // Change active list
@@ -121,7 +141,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }, (injectionResults) => {
                 if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
-                    chrome.runtime.sendMessage({ type: "SAVE_VIDEO", details: injectionResults[0].result });
+                    chrome.runtime.sendMessage({
+                        type: "SAVE_VIDEO",
+                        details: injectionResults[0].result,
+                        addAtTop: state.addAtTop
+                    });
                 }
             });
         });

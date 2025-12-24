@@ -1,6 +1,6 @@
 // --- Helper Functions ---
 
-function normalizeAndSave(videoDetails) {
+function normalizeAndSave(videoDetails, addAtTop = true) {
   if (!videoDetails || !videoDetails.url || !videoDetails.title) {
     console.error("Invalid or incomplete video details received.", videoDetails);
     return;
@@ -23,9 +23,13 @@ function normalizeAndSave(videoDetails) {
 
       // Add video if it's not already in the list
       if (!lists[activeList].some(video => video.url === finalDetails.url)) {
-        lists[activeList].unshift(finalDetails);
+        if (addAtTop) {
+          lists[activeList].unshift(finalDetails);
+        } else {
+          lists[activeList].push(finalDetails);
+        }
         chrome.storage.local.set({ lists }, () => {
-          console.log(`Video added to list "${activeList}":`, finalDetails.title);
+          console.log(`Video added to list "${activeList}" (Top: ${addAtTop}):`, finalDetails.title);
         });
       } else {
         console.log("Video already in list:", finalDetails.title);
@@ -124,48 +128,57 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== "addToList") return;
-    let videoId = null;
-    if (info.mediaType === 'image' && info.srcUrl && info.srcUrl.includes('ytimg.com/vi/')) {
-        const parts = info.srcUrl.split('/');
-        if (parts.length > 4) videoId = parts[4];
-    } else if (info.linkUrl) {
-        try {
-            const url = new URL(info.linkUrl);
-            if (url.hostname.includes('youtube.com') && url.pathname === '/watch') {
-                videoId = url.searchParams.get('v');
-            }
-        } catch (e) { /* Negeer */ }
-    }
-    if (videoId) {
-        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: getTitleForVideoId,
-            args: [videoId]
-        }, (injectionResults) => {
-            if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
-                normalizeAndSave({ title: injectionResults[0].result, url: videoUrl });
-            } else {
-                console.warn(`Could not find title for video ID ${videoId}. Using placeholder.`);
-                normalizeAndSave({ title: `Video (ID: ${videoId})`, url: videoUrl });
-            }
-        });
-        return;
-    }
-    if (tab.url && tab.url.includes("youtube.com/watch")) {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: getVideoDetailsFromWatchPage
-        }, (watchPageResults) => {
-            if (!chrome.runtime.lastError && watchPageResults && watchPageResults[0] && watchPageResults[0].result) {
-                normalizeAndSave(watchPageResults[0].result);
-            }
-        });
-    }
+
+    // For context menu clicks, we get the preference from storage, defaulting to top.
+    chrome.storage.local.get({ addAtTop: true }, (data) => {
+        const addAtTop = data.addAtTop;
+        let videoId = null;
+
+        if (info.mediaType === 'image' && info.srcUrl && info.srcUrl.includes('ytimg.com/vi/')) {
+            const parts = info.srcUrl.split('/');
+            if (parts.length > 4) videoId = parts[4];
+        } else if (info.linkUrl) {
+            try {
+                const url = new URL(info.linkUrl);
+                if (url.hostname.includes('youtube.com') && url.pathname === '/watch') {
+                    videoId = url.searchParams.get('v');
+                }
+            } catch (e) { /* Ignore */ }
+        }
+
+        if (videoId) {
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: getTitleForVideoId,
+                args: [videoId]
+            }, (injectionResults) => {
+                if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
+                    normalizeAndSave({ title: injectionResults[0].result, url: videoUrl }, addAtTop);
+                } else {
+                    console.warn(`Could not find title for video ID ${videoId}. Using placeholder.`);
+                    normalizeAndSave({ title: `Video (ID: ${videoId})`, url: videoUrl }, addAtTop);
+                }
+            });
+            return;
+        }
+
+        if (tab.url && tab.url.includes("youtube.com/watch")) {
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: getVideoDetailsFromWatchPage
+            }, (watchPageResults) => {
+                if (!chrome.runtime.lastError && watchPageResults && watchPageResults[0] && watchPageResults[0].result) {
+                    normalizeAndSave(watchPageResults[0].result, addAtTop);
+                }
+            });
+        }
+    });
 });
 
 chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "SAVE_VIDEO" && message.details) {
-        normalizeAndSave(message.details);
+        // Here, the addAtTop value comes directly from the popup message
+        normalizeAndSave(message.details, message.addAtTop);
     }
 });

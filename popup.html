@@ -15,6 +15,68 @@
       --border-radius: 8px;
     }
 
+    .title-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-color);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+
+    .slider-text {
+      position: absolute;
+      right: 55px; /* Position text to the left of the switch */
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: var(--text-color);
+      pointer-events: none; /* Make text non-interactive */
+    }
+
     body {
       width: 400px;
       font-family: 'Roboto', sans-serif;
@@ -26,9 +88,9 @@
     h1 {
       font-size: 20px;
       font-weight: 500;
-      margin: 0 0 15px 0;
-      text-align: center;
+      margin: 0; /* Adjusted margin */
       color: var(--accent-color);
+      /* text-align is no longer needed due to flex */
     }
 
     select, input[type="text"] {
@@ -175,7 +237,16 @@
   </style>
 </head>
 <body>
-  <h1>My Video Lists</h1>
+  <div class="title-container">
+    <h1>My Video Lists</h1>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span id="toggleLabel" style="font-size: 12px; color: var(--text-color);">Add to Top</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="addPositionToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
 
   <div class="list-management">
     <select id="listSelector"></select>
