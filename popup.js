@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Context Menu Logic ---
     const contextMenu = document.getElementById('contextMenu');
     const menuGoToButton = document.getElementById('menuGoToButton');
+    const menuEditButton = document.getElementById('menuEditButton');
     const menuCopyButton = document.getElementById('menuCopyButton');
     const menuMoveUpButton = document.getElementById('menuMoveUpButton');
     const menuMoveDownButton = document.getElementById('menuMoveDownButton');
@@ -261,6 +262,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const video = state.lists[state.activeList][selectedRecordIndex];
             if (video && video.url) {
                 chrome.tabs.create({ url: video.url });
+            }
+        }
+        contextMenu.style.display = 'none';
+    });
+
+    // Action: Edit record
+    menuEditButton.addEventListener('click', () => {
+        if (selectedRecordIndex !== -1) {
+            const list = state.lists[state.activeList];
+            const video = list[selectedRecordIndex];
+
+            const newTitle = prompt("Enter the new title:", video.title);
+
+            if (newTitle !== null && newTitle.trim() !== '') {
+                // Create a new video object to avoid direct state mutation
+                const updatedVideo = { ...video, title: newTitle.trim() };
+
+                // Create a new list array with the updated video
+                const updatedList = [
+                    ...list.slice(0, selectedRecordIndex),
+                    updatedVideo,
+                    ...list.slice(selectedRecordIndex + 1)
+                ];
+
+                // Update state and save
+                state.lists[state.activeList] = updatedList; // Update state directly
+                chrome.storage.local.set({ lists: state.lists });
+                render(); // Re-render the UI
             }
         }
         contextMenu.style.display = 'none';
