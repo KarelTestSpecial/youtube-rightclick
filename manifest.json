@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Rightclick Link Collector",
-  "version": "3.3",
+  "version": "3.5",
   "description": "Easily add YouTube video URLs to your own custom lists. Easily copy them to Spreadsheets.",
   "permissions": [
     "contextMenus",

@@ -96,15 +96,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 2. Enable 'Add' button if on a YouTube page
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const currentTab = tabs[0];
-        if (currentTab && currentTab.url && currentTab.url.includes("youtube.com")) {
-            // Further refinement: on watch page we can always add video.
-            // In channel mode, we might want to check if it's a channel page or watch page.
-            // For now, enable it on all youtube pages and let the background script handle the logic.
-            addCurrentVideoButton.disabled = false;
-        }
-    });
+    const checkTab = () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const currentTab = tabs[0];
+            if (currentTab && currentTab.url && currentTab.url.includes("youtube.com")) {
+                addCurrentVideoButton.disabled = false;
+            } else {
+                addCurrentVideoButton.disabled = true;
+            }
+        });
+    };
+    checkTab();
 
     // --- Event Listeners ---
     // Listen for storage changes from other parts of the extension
@@ -122,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (changes.activeList) state.activeVideoList = changes.activeList.newValue;
 
             render();
+            checkTab(); // Re-check tab in case URL changed
         }
     });
 
@@ -188,8 +191,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 chrome.scripting.executeScript({
                     target: { tabId: tab.id },
                     func: () => {
-                        const titleElement = document.querySelector('h1.ytd-watch-metadata #title, h1.title.ytd-video-primary-info-renderer');
-                        return titleElement ? { title: titleElement.innerText, url: window.location.href } : null;
+                        const isVisible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+                        const selectors = [
+                            'h1.ytd-watch-metadata #title',
+                            'h1.title.ytd-video-primary-info-renderer',
+                            'ytd-watch-metadata h1'
+                        ];
+                        for (const selector of selectors) {
+                            const el = document.querySelector(selector);
+                            if (el && isVisible(el) && el.innerText.trim()) {
+                                return { title: el.innerText.trim(), url: window.location.href };
+                            }
+                        }
+                        if (document.title) return { title: document.title.replace(" - YouTube", "").trim(), url: window.location.href };
+                        return null;
                     }
                 }, (injectionResults) => {
                     if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
@@ -198,25 +213,73 @@ document.addEventListener('DOMContentLoaded', () => {
                             details: injectionResults[0].result,
                             addAtTop: state.addAtTop
                         });
+                        // Visual feedback
+                        const originalText = addCurrentVideoButton.textContent;
+                        addCurrentVideoButton.textContent = 'Added!';
+                        setTimeout(() => {
+                            addCurrentVideoButton.textContent = originalText;
+                        }, 1500);
+                    } else {
+                        alert("Could not detect video details on this page.");
                     }
                 });
             } else {
                 chrome.scripting.executeScript({
                     target: { tabId: tab.id },
                     func: () => {
-                        const channelLink = document.querySelector('ytd-video-owner-renderer #channel-name a, #owner #channel-name a');
-                        if (channelLink) return { title: channelLink.innerText, url: channelLink.href };
-                        const channelNameElement = document.querySelector('#channel-header-container #text, ytd-channel-name#channel-name');
-                        if (channelNameElement) return { title: channelNameElement.innerText, url: window.location.href };
+                        const isVisible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+                        // 1. If on a watch page, get the channel of the video
+                        if (window.location.pathname === '/watch' || window.location.pathname.startsWith('/shorts/')) {
+                            const selectors = [
+                                'ytd-watch-metadata #owner a',
+                                'ytd-video-owner-renderer #channel-name a',
+                                '#owner #channel-name a',
+                                '.ytd-video-owner-renderer a'
+                            ];
+                            for (const selector of selectors) {
+                                const el = document.querySelector(selector);
+                                if (el && isVisible(el) && el.href && el.innerText.trim()) {
+                                    return { title: el.innerText.trim(), url: el.href };
+                                }
+                            }
+                        }
+                        // 2. If on a channel page
+                        const channelHeader = document.querySelector('ytd-browse[page-subtype="channels"] #channel-header, ytd-browse #channel-header, #channel-header-container');
+                        if (channelHeader && isVisible(channelHeader)) {
+                            const nameEl = channelHeader.querySelector('#text, #channel-name, .dynamic-text-view-model-wiz__h1 span');
+                            if (nameEl && isVisible(nameEl) && nameEl.innerText.trim()) {
+                                let url = window.location.href;
+                                try {
+                                    const u = new URL(url);
+                                    url = u.origin + u.pathname;
+                                } catch (e) { }
+                                return { title: nameEl.innerText.trim(), url: url };
+                            }
+                        }
+                        // 3. Fallback to document title if it looks like a channel page
+                        if (window.location.pathname.startsWith('/@') || window.location.pathname.includes('/channel/') || window.location.pathname.includes('/c/') || window.location.pathname.includes('/user/')) {
+                            const title = document.title.replace(" - YouTube", "").trim();
+                            if (title && title !== "YouTube") {
+                                return { title: title, url: window.location.href.split('?')[0].split('#')[0] };
+                            }
+                        }
                         return null;
                     }
                 }, (results) => {
                     if (!chrome.runtime.lastError && results && results[0] && results[0].result) {
                         chrome.runtime.sendMessage({
-                            type: "SAVE_VIDEO", // Still using same message type, background handles mode
+                            type: "SAVE_VIDEO",
                             details: results[0].result,
                             addAtTop: state.addAtTop
                         });
+                        // Visual feedback
+                        const originalText = addCurrentVideoButton.textContent;
+                        addCurrentVideoButton.textContent = 'Added!';
+                        setTimeout(() => {
+                            addCurrentVideoButton.textContent = originalText;
+                        }, 1500);
+                    } else {
+                        alert("Could not detect channel details on this page.");
                     }
                 });
             }
@@ -390,8 +453,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const list = getLists()[listName];
             const updatedItems = [...list];
             [updatedItems[selectedRecordIndex], updatedItems[selectedRecordIndex - 1]] =
-            [updatedItems[selectedRecordIndex - 1], updatedItems[selectedRecordIndex]];
-            
+                [updatedItems[selectedRecordIndex - 1], updatedItems[selectedRecordIndex]];
+
             const lists = getLists();
             const newLists = { ...lists, [listName]: updatedItems };
             const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
@@ -407,8 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRecordIndex !== -1 && selectedRecordIndex < list.length - 1) {
             const updatedItems = [...list];
             [updatedItems[selectedRecordIndex], updatedItems[selectedRecordIndex + 1]] =
-            [updatedItems[selectedRecordIndex + 1], updatedItems[selectedRecordIndex]];
-            
+                [updatedItems[selectedRecordIndex + 1], updatedItems[selectedRecordIndex]];
+
             const lists = getLists();
             const newLists = { ...lists, [listName]: updatedItems };
             const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
