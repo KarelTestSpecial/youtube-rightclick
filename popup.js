@@ -11,20 +11,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearButton = document.getElementById('clearButton');
     const addPositionToggle = document.getElementById('addPositionToggle');
     const toggleLabel = document.getElementById('toggleLabel');
+    const mainTitle = document.getElementById('mainTitle');
+    const menuGoToButton = document.getElementById('menuGoToButton');
 
     // --- State & Render ---
     let state = {
-        lists: {},
-        activeList: '',
+        videoLists: {},
+        activeVideoList: '',
+        channelLists: {},
+        activeChannelList: '',
+        mode: 'video',
         addAtTop: true
     };
 
-    const render = () => {
-        const { lists, activeList } = state;
-        const listNames = Object.keys(lists);
-        const currentVideos = lists[activeList] || [];
+    const getLists = () => state.mode === 'video' ? state.videoLists : state.channelLists;
+    const getActiveListName = () => state.mode === 'video' ? state.activeVideoList : state.activeChannelList;
 
-        // 1. Populate Dropdown
+    const render = () => {
+        const lists = getLists();
+        const activeList = getActiveListName();
+        const listNames = Object.keys(lists);
+        const currentItems = lists[activeList] || [];
+
+        // 1. Update Mode-specific UI
+        mainTitle.textContent = state.mode === 'video' ? 'My Video Lists' : 'My Channel Lists';
+        addCurrentVideoButton.textContent = state.mode === 'video' ? 'Add Current Video to Selected List' : 'Add Current Channel to Selected List';
+        menuGoToButton.querySelector('span').textContent = state.mode === 'video' ? 'Go to Video' : 'Go to Channel';
+
+        // 2. Populate Dropdown
         listSelector.innerHTML = '';
         listNames.forEach(name => {
             const option = document.createElement('option');
@@ -34,64 +48,94 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         listSelector.value = activeList;
 
-        // 2. Display Videos
-        if (currentVideos.length > 0) {
-            videoOutput.value = currentVideos.map(v => `${v.title}\n${v.url}`).join('\n\n');
+        // 3. Display Items
+        if (currentItems.length > 0) {
+            videoOutput.value = currentItems.map(item => `${item.title}\n${item.url}`).join('\n\n');
         } else {
             videoOutput.value = '';
         }
 
-        // 3. Update Button States
-        const isListEmpty = currentVideos.length === 0;
+        // 4. Update Button States
+        const isListEmpty = currentItems.length === 0;
         copyButton.disabled = isListEmpty;
         downloadButton.disabled = isListEmpty;
         clearButton.disabled = isListEmpty;
-        deleteListButton.disabled = listNames.length <= 1; // Can't delete the last list
+        deleteListButton.disabled = listNames.length <= 1;
         videoOutput.placeholder = `List "${activeList}" is empty.`;
 
-        // 4. Update Toggle Switch UI
+        // 5. Update Toggle Switch UI
         addPositionToggle.checked = state.addAtTop;
         toggleLabel.textContent = state.addAtTop ? 'Add to Top' : 'Add to Bottom';
     };
 
     // --- Initialization ---
     // 1. Get initial data from storage
-    chrome.storage.local.get({ lists: { 'A List': [] }, activeList: 'A List', addAtTop: true }, (data) => {
-        state.lists = data.lists;
-        state.activeList = data.activeList;
+    chrome.storage.local.get({
+        lists: { 'A List': [] },
+        activeList: 'A List',
+        videoLists: null,
+        activeVideoList: '',
+        channelLists: { 'A Channel List': [] },
+        activeChannelList: 'A Channel List',
+        mode: 'video',
+        addAtTop: true
+    }, (data) => {
+        // Migration logic for immediate UI consistency
+        if (data.videoLists === null) {
+            state.videoLists = data.lists;
+            state.activeVideoList = data.activeList;
+        } else {
+            state.videoLists = data.videoLists;
+            state.activeVideoList = data.activeVideoList;
+        }
+        state.channelLists = data.channelLists;
+        state.activeChannelList = data.activeChannelList;
+        state.mode = data.mode;
         state.addAtTop = data.addAtTop;
         render();
     });
 
-    // 2. Enable 'Add' button if on a YouTube watch page
+    // 2. Enable 'Add' button if on a YouTube page
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const currentTab = tabs[0];
-        if (currentTab && currentTab.url && currentTab.url.includes("youtube.com/watch")) {
+        if (currentTab && currentTab.url && currentTab.url.includes("youtube.com")) {
+            // Further refinement: on watch page we can always add video.
+            // In channel mode, we might want to check if it's a channel page or watch page.
+            // For now, enable it on all youtube pages and let the background script handle the logic.
             addCurrentVideoButton.disabled = false;
         }
     });
 
     // --- Event Listeners ---
-    // Listen for storage changes from other parts of the extension (e.g., background script)
+    // Listen for storage changes from other parts of the extension
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
-            if (changes.lists) {
-                state.lists = changes.lists.newValue;
-            }
-            if (changes.activeList) {
-                state.activeList = changes.activeList.newValue;
-            }
-            if (changes.addAtTop) {
-                state.addAtTop = changes.addAtTop.newValue;
-            }
+            if (changes.videoLists) state.videoLists = changes.videoLists.newValue;
+            if (changes.activeVideoList) state.activeVideoList = changes.activeVideoList.newValue;
+            if (changes.channelLists) state.channelLists = changes.channelLists.newValue;
+            if (changes.activeChannelList) state.activeChannelList = changes.activeChannelList.newValue;
+            if (changes.mode) state.mode = changes.mode.newValue;
+            if (changes.addAtTop) state.addAtTop = changes.addAtTop.newValue;
+
+            // Legacy support during migration
+            if (changes.lists) state.videoLists = changes.lists.newValue;
+            if (changes.activeList) state.activeVideoList = changes.activeList.newValue;
+
             render();
         }
+    });
+
+    // Toggle Mode
+    mainTitle.addEventListener('click', () => {
+        const newMode = state.mode === 'video' ? 'channel' : 'video';
+        state.mode = newMode;
+        chrome.storage.local.set({ mode: newMode });
+        render();
     });
 
     // Toggle add position
     addPositionToggle.addEventListener('change', (e) => {
         const newAddAtTop = e.target.checked;
-        // Update state directly and re-render immediately, as onChanged doesn't fire in the same script.
         state.addAtTop = newAddAtTop;
         chrome.storage.local.set({ addAtTop: newAddAtTop });
         render();
@@ -100,64 +144,93 @@ document.addEventListener('DOMContentLoaded', () => {
     // Change active list
     listSelector.addEventListener('change', (e) => {
         const newActiveList = e.target.value;
-        chrome.storage.local.set({ activeList: newActiveList });
-        // The storage.onChanged listener will handle the re-render
+        const key = state.mode === 'video' ? 'activeVideoList' : 'activeChannelList';
+        chrome.storage.local.set({ [key]: newActiveList });
     });
 
     // Add a new list
     addListButton.addEventListener('click', () => {
         const newName = newListNameInput.value.trim();
-        if (newName && !state.lists[newName]) {
-            const newLists = { ...state.lists, [newName]: [] };
-            chrome.storage.local.set({ lists: newLists, activeList: newName }, () => {
-                newListNameInput.value = ''; // Clear input on success
+        const lists = getLists();
+        if (newName && !lists[newName]) {
+            const newLists = { ...lists, [newName]: [] };
+            const listsKey = state.mode === 'video' ? 'videoLists' : 'channelLists';
+            const activeKey = state.mode === 'video' ? 'activeVideoList' : 'activeChannelList';
+            chrome.storage.local.set({ [listsKey]: newLists, [activeKey]: newName }, () => {
+                newListNameInput.value = '';
             });
         }
     });
 
     // Delete the selected list
     deleteListButton.addEventListener('click', () => {
-        const listToDelete = state.activeList;
-        if (Object.keys(state.lists).length <= 1) {
+        const lists = getLists();
+        const activeList = getActiveListName();
+        if (Object.keys(lists).length <= 1) {
             alert("You cannot delete the last list.");
             return;
         }
-        if (confirm(`Are you sure you want to delete the list "${listToDelete}"?`)) {
-            const newLists = { ...state.lists };
-            delete newLists[listToDelete];
-            const newActiveList = Object.keys(newLists)[0]; // Switch to the first available list
-            chrome.storage.local.set({ lists: newLists, activeList: newActiveList });
+        if (confirm(`Are you sure you want to delete the list "${activeList}"?`)) {
+            const newLists = { ...lists };
+            delete newLists[activeList];
+            const newActiveList = Object.keys(newLists)[0];
+            const listsKey = state.mode === 'video' ? 'videoLists' : 'channelLists';
+            const activeKey = state.mode === 'video' ? 'activeVideoList' : 'activeChannelList';
+            chrome.storage.local.set({ [listsKey]: newLists, [activeKey]: newActiveList });
         }
     });
 
-    // Add current video to the active list
+    // Add current record to the active list
     addCurrentVideoButton.addEventListener('click', () => {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            chrome.scripting.executeScript({
-                target: { tabId: tabs[0].id },
-                func: () => {
-                    const titleElement = document.querySelector('h1.ytd-watch-metadata #title, h1.title.ytd-video-primary-info-renderer');
-                    return titleElement ? { title: titleElement.innerText, url: window.location.href } : null;
-                }
-            }, (injectionResults) => {
-                if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
-                    chrome.runtime.sendMessage({
-                        type: "SAVE_VIDEO",
-                        details: injectionResults[0].result,
-                        addAtTop: state.addAtTop
-                    });
-                }
-            });
+            const tab = tabs[0];
+            if (state.mode === 'video') {
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: () => {
+                        const titleElement = document.querySelector('h1.ytd-watch-metadata #title, h1.title.ytd-video-primary-info-renderer');
+                        return titleElement ? { title: titleElement.innerText, url: window.location.href } : null;
+                    }
+                }, (injectionResults) => {
+                    if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
+                        chrome.runtime.sendMessage({
+                            type: "SAVE_VIDEO",
+                            details: injectionResults[0].result,
+                            addAtTop: state.addAtTop
+                        });
+                    }
+                });
+            } else {
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: () => {
+                        const channelLink = document.querySelector('ytd-video-owner-renderer #channel-name a, #owner #channel-name a');
+                        if (channelLink) return { title: channelLink.innerText, url: channelLink.href };
+                        const channelNameElement = document.querySelector('#channel-header-container #text, ytd-channel-name#channel-name');
+                        if (channelNameElement) return { title: channelNameElement.innerText, url: window.location.href };
+                        return null;
+                    }
+                }, (results) => {
+                    if (!chrome.runtime.lastError && results && results[0] && results[0].result) {
+                        chrome.runtime.sendMessage({
+                            type: "SAVE_VIDEO", // Still using same message type, background handles mode
+                            details: results[0].result,
+                            addAtTop: state.addAtTop
+                        });
+                    }
+                });
+            }
         });
     });
 
-    // Copy videos from the active list as TSV
+    // Copy items from the active list as TSV
     copyButton.addEventListener('click', () => {
-        const { activeList, lists } = state;
-        const videos = lists[activeList] || [];
-        if (videos.length === 0) return;
+        const lists = getLists();
+        const activeList = getActiveListName();
+        const items = lists[activeList] || [];
+        if (items.length === 0) return;
 
-        const tsvContent = videos.map(v => `${v.title}\t${v.url}`).join('\n');
+        const tsvContent = items.map(item => `${item.title}\t${item.url}`).join('\n');
 
         navigator.clipboard.writeText(tsvContent).then(() => {
             // Optional: Provide user feedback
@@ -179,9 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Download the active list as a text file
     downloadButton.addEventListener('click', () => {
-        const { activeList, lists } = state;
-        const videos = lists[activeList] || [];
-        if (videos.length === 0) return;
+        const activeList = getActiveListName();
+        const items = getLists()[activeList] || [];
+        if (items.length === 0) return;
 
         const content = videoOutput.value;
         const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -200,17 +273,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Clear all videos from the active list
+    // Clear all items from the active list
     clearButton.addEventListener('click', () => {
-        if (confirm(`Are you sure you want to clear all videos from "${state.activeList}"?`)) {
-            const newLists = { ...state.lists, [state.activeList]: [] };
-            chrome.storage.local.set({ lists: newLists });
+        const activeList = getActiveListName();
+        const type = state.mode === 'video' ? 'videos' : 'channels';
+        if (confirm(`Are you sure you want to clear all ${type} from "${activeList}"?`)) {
+            const lists = getLists();
+            const newLists = { ...lists, [activeList]: [] };
+            const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
+            chrome.storage.local.set({ [key]: newLists });
         }
     });
 
     // --- Context Menu Logic ---
     const contextMenu = document.getElementById('contextMenu');
-    const menuGoToButton = document.getElementById('menuGoToButton');
     const menuEditButton = document.getElementById('menuEditButton');
     const menuCopyButton = document.getElementById('menuCopyButton');
     const menuMoveUpButton = document.getElementById('menuMoveUpButton');
@@ -227,8 +303,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const lineNumber = text.substr(0, cursorPosition).split('\n').length - 1;
         selectedRecordIndex = Math.floor(lineNumber / 3);
 
-        const currentVideos = state.lists[state.activeList];
-        if (selectedRecordIndex < 0 || selectedRecordIndex >= currentVideos.length) {
+        const currentItems = getLists()[getActiveListName()];
+        if (selectedRecordIndex < 0 || selectedRecordIndex >= currentItems.length) {
             contextMenu.style.display = 'none';
             return;
         }
@@ -256,12 +332,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Action: Go to video
+    // Action: Go to item
     menuGoToButton.addEventListener('click', () => {
         if (selectedRecordIndex !== -1) {
-            const video = state.lists[state.activeList][selectedRecordIndex];
-            if (video && video.url) {
-                chrome.tabs.create({ url: video.url });
+            const item = getLists()[getActiveListName()][selectedRecordIndex];
+            if (item && item.url) {
+                chrome.tabs.create({ url: item.url });
             }
         }
         contextMenu.style.display = 'none';
@@ -270,26 +346,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Action: Edit record
     menuEditButton.addEventListener('click', () => {
         if (selectedRecordIndex !== -1) {
-            const list = state.lists[state.activeList];
-            const video = list[selectedRecordIndex];
+            const listName = getActiveListName();
+            const list = getLists()[listName];
+            const item = list[selectedRecordIndex];
 
-            const newTitle = prompt("Enter the new title:", video.title);
+            const newTitle = prompt("Enter the new title:", item.title);
 
             if (newTitle !== null && newTitle.trim() !== '') {
-                // Create a new video object to avoid direct state mutation
-                const updatedVideo = { ...video, title: newTitle.trim() };
-
-                // Create a new list array with the updated video
+                const updatedItem = { ...item, title: newTitle.trim() };
                 const updatedList = [
                     ...list.slice(0, selectedRecordIndex),
-                    updatedVideo,
+                    updatedItem,
                     ...list.slice(selectedRecordIndex + 1)
                 ];
 
-                // Update state and save
-                state.lists[state.activeList] = updatedList; // Update state directly
-                chrome.storage.local.set({ lists: state.lists });
-                render(); // Re-render the UI
+                const lists = getLists();
+                const newLists = { ...lists, [listName]: updatedList };
+                const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
+                chrome.storage.local.set({ [key]: newLists });
             }
         }
         contextMenu.style.display = 'none';
@@ -298,12 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Action: Copy record
     menuCopyButton.addEventListener('click', () => {
         if (selectedRecordIndex !== -1) {
-            const video = state.lists[state.activeList][selectedRecordIndex];
-            if (video) {
-                const tsvContent = `${video.title}\t${video.url}`;
-                navigator.clipboard.writeText(tsvContent).then(() => {
-                     // Feedback could be added here (e.g. brief text change), but standard copy behavior is usually silent or system-managed.
-                }).catch(err => {
+            const item = getLists()[getActiveListName()][selectedRecordIndex];
+            if (item) {
+                const tsvContent = `${item.title}\t${item.url}`;
+                navigator.clipboard.writeText(tsvContent).catch(err => {
                     console.error('Failed to copy text: ', err);
                 });
             }
@@ -314,27 +386,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // Action: Move record up
     menuMoveUpButton.addEventListener('click', () => {
         if (selectedRecordIndex > 0) {
-            const list = state.lists[state.activeList];
-            const updatedVideos = [...list];
-            [updatedVideos[selectedRecordIndex], updatedVideos[selectedRecordIndex - 1]] = 
-            [updatedVideos[selectedRecordIndex - 1], updatedVideos[selectedRecordIndex]];
+            const listName = getActiveListName();
+            const list = getLists()[listName];
+            const updatedItems = [...list];
+            [updatedItems[selectedRecordIndex], updatedItems[selectedRecordIndex - 1]] =
+            [updatedItems[selectedRecordIndex - 1], updatedItems[selectedRecordIndex]];
             
-            const newLists = { ...state.lists, [state.activeList]: updatedVideos };
-            chrome.storage.local.set({ lists: newLists });
+            const lists = getLists();
+            const newLists = { ...lists, [listName]: updatedItems };
+            const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
+            chrome.storage.local.set({ [key]: newLists });
             contextMenu.style.display = 'none';
         }
     });
 
     // Action: Move record down
     menuMoveDownButton.addEventListener('click', () => {
-        const list = state.lists[state.activeList];
+        const listName = getActiveListName();
+        const list = getLists()[listName];
         if (selectedRecordIndex !== -1 && selectedRecordIndex < list.length - 1) {
-            const updatedVideos = [...list];
-            [updatedVideos[selectedRecordIndex], updatedVideos[selectedRecordIndex + 1]] = 
-            [updatedVideos[selectedRecordIndex + 1], updatedVideos[selectedRecordIndex]];
+            const updatedItems = [...list];
+            [updatedItems[selectedRecordIndex], updatedItems[selectedRecordIndex + 1]] =
+            [updatedItems[selectedRecordIndex + 1], updatedItems[selectedRecordIndex]];
             
-            const newLists = { ...state.lists, [state.activeList]: updatedVideos };
-            chrome.storage.local.set({ lists: newLists });
+            const lists = getLists();
+            const newLists = { ...lists, [listName]: updatedItems };
+            const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
+            chrome.storage.local.set({ [key]: newLists });
             contextMenu.style.display = 'none';
         }
     });
@@ -342,14 +420,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Action: Delete record
     menuDeleteButton.addEventListener('click', () => {
         if (selectedRecordIndex !== -1) {
-            // Hide the menu before showing the confirmation dialog to prevent rendering issues.
             contextMenu.style.display = 'none';
-
+            const listName = getActiveListName();
             if (confirm('Are you sure you want to delete this record?')) {
-                const updatedVideos = [...state.lists[state.activeList]];
-                updatedVideos.splice(selectedRecordIndex, 1);
-                const newLists = { ...state.lists, [state.activeList]: updatedVideos };
-                chrome.storage.local.set({ lists: newLists });
+                const list = getLists()[listName];
+                const updatedItems = [...list];
+                updatedItems.splice(selectedRecordIndex, 1);
+
+                const lists = getLists();
+                const newLists = { ...lists, [listName]: updatedItems };
+                const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
+                chrome.storage.local.set({ [key]: newLists });
             }
         }
     });

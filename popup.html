@@ -91,6 +91,14 @@
       margin: 0; /* Adjusted margin */
       color: var(--accent-color);
       /* text-align is no longer needed due to flex */
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s ease-in-out;
+    }
+
+    h1:hover {
+      color: #88e2fb;
+      text-decoration: underline;
     }
 
     select, input[type="text"] {
@@ -238,7 +246,7 @@
 </head>
 <body>
   <div class="title-container">
-    <h1>My Video Lists</h1>
+    <h1 id="mainTitle">My Video Lists</h1>
     <div style="display: flex; align-items: center; gap: 8px;">
       <span id="toggleLabel" style="font-size: 12px; color: var(--text-color);">Add to Top</span>
       <label class="toggle-switch">

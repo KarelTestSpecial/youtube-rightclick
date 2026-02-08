@@ -1,41 +1,71 @@
 // --- Helper Functions ---
 
-function normalizeAndSave(videoDetails, addAtTop = true) {
-  if (!videoDetails || !videoDetails.url || !videoDetails.title) {
-    console.error("Invalid or incomplete video details received.", videoDetails);
+function isChannelUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes('youtube.com')) return false;
+    return u.pathname.startsWith('/@') ||
+           u.pathname.startsWith('/channel/') ||
+           u.pathname.startsWith('/c/') ||
+           u.pathname.startsWith('/user/');
+  } catch(e) { return false; }
+}
+
+function normalizeAndSave(details, addAtTop = true) {
+  if (!details || !details.url || !details.title) {
+    console.error("Invalid or incomplete details received.", details);
     return;
   }
-  try {
-    const urlObject = new URL(videoDetails.url);
-    const videoId = urlObject.searchParams.get('v');
-    if (!videoId) { return; }
-    const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const finalDetails = { title: videoDetails.title.trim(), url: cleanUrl };
 
-    // Get the current data structure
-    chrome.storage.local.get({ lists: {}, activeList: 'A List' }, (data) => {
-      let { lists, activeList } = data;
+  chrome.storage.local.get({
+    mode: 'video',
+    videoLists: { 'A List': [] },
+    activeVideoList: 'A List',
+    channelLists: { 'A Channel List': [] },
+    activeChannelList: 'A Channel List'
+  }, (data) => {
+    const { mode } = data;
+    let lists, activeList, storageKey;
 
-      // Ensure the active list exists
-      if (!lists[activeList]) {
-        lists[activeList] = [];
-      }
+    if (mode === 'video') {
+      lists = data.videoLists;
+      activeList = data.activeVideoList;
+      storageKey = 'videoLists';
 
-      // Add video if it's not already in the list
-      if (!lists[activeList].some(video => video.url === finalDetails.url)) {
-        if (addAtTop) {
-          lists[activeList].unshift(finalDetails);
-        } else {
-          lists[activeList].push(finalDetails);
+      // Video specific normalization
+      try {
+        const urlObject = new URL(details.url);
+        const videoId = urlObject.searchParams.get('v');
+        if (videoId) {
+          details.url = `https://www.youtube.com/watch?v=${videoId}`;
         }
-        chrome.storage.local.set({ lists }, () => {
-          console.log(`Video added to list "${activeList}" (Top: ${addAtTop}):`, finalDetails.title);
-        });
+      } catch (e) { /* ignore */ }
+    } else {
+      lists = data.channelLists;
+      activeList = data.activeChannelList;
+      storageKey = 'channelLists';
+    }
+
+    if (!lists[activeList]) {
+      lists[activeList] = [];
+    }
+
+    const finalDetails = { title: details.title.trim(), url: details.url };
+
+    if (!lists[activeList].some(item => item.url === finalDetails.url)) {
+      if (addAtTop) {
+        lists[activeList].unshift(finalDetails);
       } else {
-        console.log("Video already in list:", finalDetails.title);
+        lists[activeList].push(finalDetails);
       }
-    });
-  } catch (e) { console.error("Could not parse URL:", videoDetails.url, e); }
+
+      chrome.storage.local.set({ [storageKey]: lists }, () => {
+        console.log(`Added to "${activeList}" (Mode: ${mode}):`, finalDetails.title);
+      });
+    } else {
+      console.log(`${mode === 'video' ? 'Video' : 'Channel'} already in list:`, finalDetails.title);
+    }
+  });
 }
 
 // --- Injected Scripts ---
@@ -43,6 +73,20 @@ function normalizeAndSave(videoDetails, addAtTop = true) {
 function getVideoDetailsFromWatchPage() {
   const titleElement = document.querySelector('h1.ytd-watch-metadata #title, h1.title.ytd-video-primary-info-renderer');
   if (titleElement) { return { title: titleElement.innerText, url: window.location.href }; }
+  return null;
+}
+
+function getChannelDetailsFromPage() {
+  // If on a watch page, get the channel of the video
+  const channelLink = document.querySelector('ytd-video-owner-renderer #channel-name a, #owner #channel-name a');
+  if (channelLink) {
+    return { title: channelLink.innerText, url: channelLink.href };
+  }
+  // If on a channel page
+  const channelNameElement = document.querySelector('#channel-header-container #text, ytd-channel-name#channel-name');
+  if (channelNameElement) {
+    return { title: channelNameElement.innerText, url: window.location.href };
+  }
   return null;
 }
 
@@ -73,112 +117,164 @@ function getTitleForVideoId(videoId) {
     return null; // No strategy could find a title.
 }
 
+function getTitleForChannelUrl(url) {
+    const allLinks = document.querySelectorAll(`a[href*="${url}"]`);
+    for (const link of allLinks) {
+        if (link.innerText && link.innerText.trim() !== "") {
+            return link.innerText.trim();
+        }
+    }
+    return null;
+}
+
 
 // --- Event Listeners ---
 
 chrome.runtime.onInstalled.addListener(() => {
   // 1. Create Context Menu
-  chrome.contextMenus.create({
-    id: "addToList", // Changed ID for clarity
-    title: "Add video to active list",
-    contexts: ["page", "link", "image", "video"],
-    documentUrlPatterns: ["*://www.youtube.com/*"]
+  chrome.storage.local.get({ mode: 'video' }, (data) => {
+    chrome.contextMenus.create({
+      id: "addToList",
+      title: data.mode === 'video' ? "Add video to active list" : "Add channel to active list",
+      contexts: ["page", "link", "image", "video"],
+      documentUrlPatterns: ["*://www.youtube.com/*"]
+    });
   });
 
-  // 2. Data Migration from old format
-  chrome.storage.local.get('videoList', (data) => {
-    // If the old `videoList` exists, migrate it.
-    if (data && data.videoList) {
-      console.log("Old videoList found, migrating to new data structure.");
+  // 2. Data Migration and Structure Setup
+  chrome.storage.local.get(['videoList', 'lists', 'activeList', 'videoLists', 'mode'], (data) => {
+    let updates = {};
+
+    // Migration from very old 'videoList'
+    if (data.videoList) {
+      console.log("Old videoList found, migrating.");
       const oldList = data.videoList;
-      // Check if there's already a new structure
-      chrome.storage.local.get({ lists: {}, activeList: '' }, (newData) => {
-        let { lists } = newData;
-        // To prevent data loss on re-installation/update, we merge.
-        // A more robust migration might use a version flag.
-        lists['Imported List'] = [...(lists['Imported List'] || []), ...oldList];
+      let lists = data.lists || { 'Imported List': [] };
+      lists['Imported List'] = [...(lists['Imported List'] || []), ...oldList];
+      updates.lists = lists;
+      updates.activeList = 'Imported List';
+      chrome.storage.local.remove('videoList');
+    }
 
-        const newStructure = {
-          lists: lists,
-          activeList: 'Imported List' // Set the imported list as active
-        };
+    // Migration from 'lists' to 'videoLists' (Multi-mode structure)
+    if ((data.lists || updates.lists) && !data.videoLists) {
+      console.log("Migrating 'lists' to 'videoLists'.");
+      updates.videoLists = updates.lists || data.lists;
+      updates.activeVideoList = updates.activeList || data.activeList || 'A List';
+      updates.channelLists = { 'A Channel List': [] };
+      updates.activeChannelList = 'A Channel List';
+      updates.mode = data.mode || 'video';
 
-        chrome.storage.local.set(newStructure, () => {
-          // Remove the old list after successful migration
-          chrome.storage.local.remove('videoList', () => {
-            console.log("Migration complete. Old videoList removed.");
-          });
-        });
-      });
-    } else {
-       // If no old list, ensure a default list exists on first install
-       chrome.storage.local.get({ lists: null }, (data) => {
-        if (data.lists === null) { // Only run if 'lists' has never been set
-            console.log("First time installation. Setting up default list.");
-            chrome.storage.local.set({
-                lists: { 'A List': [] },
-                activeList: 'A List'
-            });
-        }
-       });
+      // We'll keep 'lists' and 'activeList' for now to avoid breaking older popups
+      // until they are also updated, but eventually we should remove them.
+    }
+
+    // First time install
+    if (!data.lists && !data.videoLists && !data.videoList) {
+      console.log("First time installation. Setting up defaults.");
+      updates.videoLists = { 'A List': [] };
+      updates.activeVideoList = 'A List';
+      updates.channelLists = { 'A Channel List': [] };
+      updates.activeChannelList = 'A Channel List';
+      updates.mode = 'video';
+    }
+
+    if (Object.keys(updates).length > 0) {
+      chrome.storage.local.set(updates);
     }
   });
+});
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.mode) {
+    chrome.contextMenus.update("addToList", {
+      title: changes.mode.newValue === 'video' ? "Add video to active list" : "Add channel to active list"
+    });
+  }
 });
 
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== "addToList") return;
 
-    // For context menu clicks, we get the preference from storage, defaulting to top.
-    chrome.storage.local.get({ addAtTop: true }, (data) => {
-        const addAtTop = data.addAtTop;
-        let videoId = null;
+    chrome.storage.local.get({ mode: 'video', addAtTop: true }, (data) => {
+        const { mode, addAtTop } = data;
 
-        if (info.mediaType === 'image' && info.srcUrl && info.srcUrl.includes('ytimg.com/vi/')) {
-            const parts = info.srcUrl.split('/');
-            if (parts.length > 4) videoId = parts[4];
-        } else if (info.linkUrl) {
-            try {
-                const url = new URL(info.linkUrl);
-                if (url.hostname.includes('youtube.com') && url.pathname === '/watch') {
-                    videoId = url.searchParams.get('v');
-                }
-            } catch (e) { /* Ignore */ }
-        }
+        if (mode === 'video') {
+            let videoId = null;
+            if (info.mediaType === 'image' && info.srcUrl && info.srcUrl.includes('ytimg.com/vi/')) {
+                const parts = info.srcUrl.split('/');
+                if (parts.length > 4) videoId = parts[4];
+            } else if (info.linkUrl) {
+                try {
+                    const url = new URL(info.linkUrl);
+                    if (url.hostname.includes('youtube.com') && url.pathname === '/watch') {
+                        videoId = url.searchParams.get('v');
+                    }
+                } catch (e) { /* Ignore */ }
+            }
 
-        if (videoId) {
-            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: getTitleForVideoId,
-                args: [videoId]
-            }, (injectionResults) => {
-                if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
-                    normalizeAndSave({ title: injectionResults[0].result, url: videoUrl }, addAtTop);
-                } else {
-                    console.warn(`Could not find title for video ID ${videoId}. Using placeholder.`);
-                    normalizeAndSave({ title: `Video (ID: ${videoId})`, url: videoUrl }, addAtTop);
-                }
-            });
-            return;
-        }
+            if (videoId) {
+                const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: getTitleForVideoId,
+                    args: [videoId]
+                }, (injectionResults) => {
+                    if (!chrome.runtime.lastError && injectionResults && injectionResults[0] && injectionResults[0].result) {
+                        normalizeAndSave({ title: injectionResults[0].result, url: videoUrl }, addAtTop);
+                    } else {
+                        normalizeAndSave({ title: `Video (ID: ${videoId})`, url: videoUrl }, addAtTop);
+                    }
+                });
+                return;
+            }
 
-        if (tab.url && tab.url.includes("youtube.com/watch")) {
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: getVideoDetailsFromWatchPage
-            }, (watchPageResults) => {
-                if (!chrome.runtime.lastError && watchPageResults && watchPageResults[0] && watchPageResults[0].result) {
-                    normalizeAndSave(watchPageResults[0].result, addAtTop);
-                }
-            });
+            if (tab.url && tab.url.includes("youtube.com/watch")) {
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: getVideoDetailsFromWatchPage
+                }, (watchPageResults) => {
+                    if (!chrome.runtime.lastError && watchPageResults && watchPageResults[0] && watchPageResults[0].result) {
+                        normalizeAndSave(watchPageResults[0].result, addAtTop);
+                    }
+                });
+            }
+        } else {
+            // Channel Mode
+            let channelUrl = null;
+            if (info.linkUrl && isChannelUrl(info.linkUrl)) {
+                channelUrl = info.linkUrl;
+            }
+
+            if (channelUrl) {
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: getTitleForChannelUrl,
+                    args: [channelUrl]
+                }, (results) => {
+                    if (!chrome.runtime.lastError && results && results[0] && results[0].result) {
+                        normalizeAndSave({ title: results[0].result, url: channelUrl }, addAtTop);
+                    } else {
+                        normalizeAndSave({ title: "Channel", url: channelUrl }, addAtTop);
+                    }
+                });
+            } else {
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: getChannelDetailsFromPage
+                }, (results) => {
+                    if (!chrome.runtime.lastError && results && results[0] && results[0].result) {
+                        normalizeAndSave(results[0].result, addAtTop);
+                    }
+                });
+            }
         }
     });
 });
 
 chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "SAVE_VIDEO" && message.details) {
-        // Here, the addAtTop value comes directly from the popup message
         normalizeAndSave(message.details, message.addAtTop);
     }
 });
