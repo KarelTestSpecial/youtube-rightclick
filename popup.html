@@ -22,6 +22,29 @@
       margin-bottom: 15px;
     }
 
+    .title-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #modeSwitchIcon {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      color: var(--accent-color);
+      transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+    }
+
+    #modeSwitchIcon:hover {
+      transform: scale(1.1);
+      color: #88e2fb;
+    }
+
+    #modeSwitchIcon svg {
+      fill: currentColor;
+    }
+
     .toggle-switch {
       position: relative;
       display: inline-block;
@@ -246,7 +269,14 @@
 </head>
 <body>
   <div class="title-container">
-    <h1 id="mainTitle">My Video Lists</h1>
+    <div class="title-wrapper">
+      <h1 id="mainTitle">My Video Lists</h1>
+      <span id="modeSwitchIcon" title="Switch Mode">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+          <path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/>
+        </svg>
+      </span>
+    </div>
     <div style="display: flex; align-items: center; gap: 8px;">
       <span id="toggleLabel" style="font-size: 12px; color: var(--text-color);">Add to Top</span>
       <label class="toggle-switch">

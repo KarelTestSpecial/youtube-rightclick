@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addPositionToggle = document.getElementById('addPositionToggle');
     const toggleLabel = document.getElementById('toggleLabel');
     const mainTitle = document.getElementById('mainTitle');
+    const modeSwitchIcon = document.getElementById('modeSwitchIcon');
     const menuGoToButton = document.getElementById('menuGoToButton');
 
     // --- State & Render ---
@@ -129,12 +130,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Toggle Mode
-    mainTitle.addEventListener('click', () => {
+    const toggleMode = () => {
         const newMode = state.mode === 'video' ? 'channel' : 'video';
         state.mode = newMode;
         chrome.storage.local.set({ mode: newMode });
         render();
-    });
+    };
+
+    mainTitle.addEventListener('click', toggleMode);
+    modeSwitchIcon.addEventListener('click', toggleMode);
 
     // Toggle add position
     addPositionToggle.addEventListener('change', (e) => {
