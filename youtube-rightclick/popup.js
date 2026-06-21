@@ -352,6 +352,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Helper: scroll textarea to show the item at the given index
+    const scrollToItem = (index) => {
+        setTimeout(() => {
+            videoOutput.focus();
+            const text = videoOutput.value;
+            const recordsAsText = text.split('\n\n');
+            if (recordsAsText.length > index) {
+                let startPos = 0;
+                for (let i = 0; i < index; i++) {
+                    startPos += recordsAsText[i].length + 2;
+                }
+                const endPos = startPos + recordsAsText[index].length;
+                videoOutput.setSelectionRange(startPos, endPos);
+
+                const lineNumber = index * 3;
+                const estimatedLineHeight = 20;
+                videoOutput.scrollTop = Math.max(0, (lineNumber * estimatedLineHeight) - 60);
+            }
+        }, 50);
+    };
+
     // --- Context Menu Logic ---
     const contextMenu = document.getElementById('contextMenu');
     const menuEditButton = document.getElementById('menuEditButton');
@@ -397,6 +418,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target !== videoOutput && !contextMenu.contains(e.target)) {
             contextMenu.style.display = 'none';
         }
+    });
+
+    // Keyboard navigation: Alt+ArrowUp / Alt+ArrowDown to move selected item
+    videoOutput.addEventListener('keydown', (e) => {
+        if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault();
+
+        const listName = getActiveListName();
+        const list = getLists()[listName];
+        if (!list || list.length === 0 || selectedRecordIndex === -1) return;
+
+        const currentIndex = selectedRecordIndex;
+        if (e.key === 'ArrowUp' && currentIndex === 0) return;
+        if (e.key === 'ArrowDown' && currentIndex >= list.length - 1) return;
+
+        const newIndex = e.key === 'ArrowUp' ? currentIndex - 1 : currentIndex + 1;
+
+        const updatedItems = [...list];
+        [updatedItems[currentIndex], updatedItems[newIndex]] =
+            [updatedItems[newIndex], updatedItems[currentIndex]];
+
+        const lists = getLists();
+        const newLists = { ...lists, [listName]: updatedItems };
+        const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
+        chrome.storage.local.set({ [key]: newLists });
+
+        selectedRecordIndex = newIndex;
+        scrollToItem(newIndex);
     });
 
     // Action: Go to item
@@ -455,15 +504,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedRecordIndex > 0) {
             const listName = getActiveListName();
             const list = getLists()[listName];
+            const newIndex = selectedRecordIndex - 1;
             const updatedItems = [...list];
-            [updatedItems[selectedRecordIndex], updatedItems[selectedRecordIndex - 1]] =
-                [updatedItems[selectedRecordIndex - 1], updatedItems[selectedRecordIndex]];
+            [updatedItems[selectedRecordIndex], updatedItems[newIndex]] =
+                [updatedItems[newIndex], updatedItems[selectedRecordIndex]];
 
             const lists = getLists();
             const newLists = { ...lists, [listName]: updatedItems };
             const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
             chrome.storage.local.set({ [key]: newLists });
+
+            selectedRecordIndex = newIndex;
             contextMenu.style.display = 'none';
+            scrollToItem(newIndex);
         }
     });
 
@@ -472,15 +525,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const listName = getActiveListName();
         const list = getLists()[listName];
         if (selectedRecordIndex !== -1 && selectedRecordIndex < list.length - 1) {
+            const newIndex = selectedRecordIndex + 1;
             const updatedItems = [...list];
-            [updatedItems[selectedRecordIndex], updatedItems[selectedRecordIndex + 1]] =
-                [updatedItems[selectedRecordIndex + 1], updatedItems[selectedRecordIndex]];
+            [updatedItems[selectedRecordIndex], updatedItems[newIndex]] =
+                [updatedItems[newIndex], updatedItems[selectedRecordIndex]];
 
             const lists = getLists();
             const newLists = { ...lists, [listName]: updatedItems };
             const key = state.mode === 'video' ? 'videoLists' : 'channelLists';
             chrome.storage.local.set({ [key]: newLists });
+
+            selectedRecordIndex = newIndex;
             contextMenu.style.display = 'none';
+            scrollToItem(newIndex);
         }
     });
 
