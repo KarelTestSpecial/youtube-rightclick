@@ -51,3 +51,14 @@ This extension can be installed from the Chrome Web Store (link to be added here
 ## Privacy
 
 This extension respects your privacy. It does not collect any personal data. All data is stored locally on your device. For more details, please see the [Privacy Policy](PRIVACY.md).
+
+## Repository history note
+
+The `v1.0` tag in this repository points to a commit from **January 2026 that
+belongs to a different project** (the `bestelSolucious` web app, which lives in
+its own repository). It predates the extraction of this extension into its own
+repository and was never pushed to the remote.
+
+It is intentionally left unpushed. If a sync-audit reports "45 unpushed
+commits" here, that is this tag and not lost work: `main` is in sync with
+`origin/main`, and the actual history of this extension is on `main`.
