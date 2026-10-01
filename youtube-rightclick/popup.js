@@ -558,4 +558,55 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // --- List Context Menu (Rename) ---
+    const listContextMenu = document.getElementById('listContextMenu');
+    const menuRenameButton = document.getElementById('menuRenameButton');
+
+    // Show list context menu on right-click of the dropdown
+    listSelector.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        listContextMenu.style.left = `${e.clientX}px`;
+        listContextMenu.style.top = `${e.clientY}px`;
+        listContextMenu.style.display = 'block';
+    });
+
+    // Hide list context menu when clicking elsewhere
+    document.addEventListener('click', (e) => {
+        if (!listContextMenu.contains(e.target)) {
+            listContextMenu.style.display = 'none';
+        }
+    });
+
+    // Action: Rename list
+    menuRenameButton.addEventListener('click', () => {
+        listContextMenu.style.display = 'none';
+        const oldName = getActiveListName();
+        const newName = prompt("Rename list:", oldName);
+
+        if (newName !== null && newName.trim() !== '' && newName.trim() !== oldName) {
+            const trimmedName = newName.trim();
+            const lists = getLists();
+
+            if (lists[trimmedName]) {
+                alert(`A list named "${trimmedName}" already exists.`);
+                return;
+            }
+
+            const newLists = {};
+            for (const [key, value] of Object.entries(lists)) {
+                newLists[key === oldName ? trimmedName : key] = value;
+            }
+
+            const listsKey = state.mode === 'video' ? 'videoLists' : 'channelLists';
+            const activeKey = state.mode === 'video' ? 'activeVideoList' : 'activeChannelList';
+            const updates = { [listsKey]: newLists };
+
+            if (getActiveListName() === oldName) {
+                updates[activeKey] = trimmedName;
+            }
+
+            chrome.storage.local.set(updates);
+        }
+    });
 });
