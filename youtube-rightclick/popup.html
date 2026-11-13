@@ -214,13 +214,26 @@
     }
 
     .export-actions {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      flex: 1;
+      min-width: 0;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 6px;
+    }
+
+    .export-actions button {
+      padding: 8px 4px;
+      font-size: 12px;
+    }
+
+    .export-actions button:disabled {
+      background-color: var(--secondary-color);
+      color: #c2c2c6;
     }
 
     #sheetsLink {
       display: inline-block;
+      flex-shrink: 0;
       width: 33px;
       height: 44px;
       transition: transform 0.2s ease-in-out;
@@ -325,9 +338,11 @@
   <div class="bottom-actions">
     <div class="export-actions">
       <button id="downloadButton">Download List</button>
-      <button id="clearButton">Clear This List</button>
-      <button id="copyButton">Copy to Clipboard</button>
+      <button id="copyButton">Copy List</button>
+      <button id="clearButton">Clear List</button>
+      <button id="downloadAllListsButton" disabled title="Download all video and channel lists as one spreadsheet table">Download All Lists</button>
       <button id="copyAllListsButton" disabled title="Copy all video and channel lists as one spreadsheet table">Copy All Lists</button>
+      <button id="renameListButton" disabled title="Rename selected list">Rename List</button>
     </div>
     <a href="https://sheets.google.com" target="_blank" id="sheetsLink" title="Open Google Sheets">
       <img src="images/google-sheets.svg" alt="Open Google Sheets">
