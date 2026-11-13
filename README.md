@@ -14,7 +14,7 @@ A powerful browser extension designed for content curators, researchers, and any
     - Create new lists and delete old ones.
     - Manually add the video you're currently watching.
 - **Flexible Export Options:**
-    - **Copy to Clipboard:** Copies the selected list in a spreadsheet-friendly TSV (Tab-Separated Values) format (`Title\tURL`).
+    - **Copy List:** Copies the selected list in a spreadsheet-friendly TSV (Tab-Separated Values) format (`Title\tURL`).
     - **Copy All Lists:** Copies every video and channel list together as one TSV table (`Type\tList\tTitle\tURL`), ready to paste into a single worksheet. Each entry keeps its list name and type; empty lists have no rows.
     - **Download List:** Save the selected list as a `.txt` file.
     - **Download All Lists:** Save all video and channel lists together as one `.tsv` file, using the same columns as Copy All Lists.
@@ -35,9 +35,9 @@ A powerful browser extension designed for content curators, researchers, and any
 
 3.  **Viewing and Exporting:**
     - **View:** Your saved videos for the active list are displayed in the text area.
-    - **Copy:** Click "Copy to Clipboard" to copy the selected list, or "Copy All Lists" to copy all video and channel lists together. Paste the result into a spreadsheet starting in one cell.
+    - **Copy:** Click "Copy List" to copy the selected list, or "Copy All Lists" to copy all video and channel lists together. Paste the result into a spreadsheet starting in one cell.
     - **Download:** Click "Download List" to save the selected list as a `.txt` file, or "Download All Lists" to save all video and channel lists together as `all-lists.tsv`. Import the TSV file into a spreadsheet; empty lists have no rows.
-    - **Clear:** Click "Clear This List" to permanently delete all videos from the active list.
+    - **Clear:** Click "Clear List" to permanently delete all videos from the active list.
 
 ## Installation
 
