@@ -31,6 +31,7 @@ A powerful browser extension designed for content curators, researchers, and any
     - Click the extension icon to open the popup.
     - **Switch Lists:** Use the dropdown menu to select your active list. Videos you save will be added here.
     - **Create a List:** Type a name in the "Create new list..." input field and click the `+` button.
+    - **Rename a List:** Select a list and click "Rename List", or right-click the list selector and choose "Rename List".
     - **Delete a List:** Select a list from the dropdown and click "Delete List". You will be asked to confirm.
 
 3.  **Viewing and Exporting:**

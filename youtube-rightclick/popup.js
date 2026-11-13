@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyAllListsButton = document.getElementById('copyAllListsButton');
     const downloadButton = document.getElementById('downloadButton');
     const downloadAllListsButton = document.getElementById('downloadAllListsButton');
+    const renameListButton = document.getElementById('renameListButton');
     const clearButton = document.getElementById('clearButton');
     const addPositionToggle = document.getElementById('addPositionToggle');
     const toggleLabel = document.getElementById('toggleLabel');
@@ -67,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadAllListsButton.disabled = areAllListsEmpty;
         downloadButton.disabled = isListEmpty;
         clearButton.disabled = isListEmpty;
+        renameListButton.disabled = !Object.prototype.hasOwnProperty.call(lists, activeList);
         deleteListButton.disabled = listNames.length <= 1;
         videoOutput.placeholder = `List "${activeList}" is empty.`;
 
@@ -639,10 +641,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Action: Rename list
-    menuRenameButton.addEventListener('click', () => {
+    // Both the context menu and the button rename the selected list.
+    const renameList = () => {
         listContextMenu.style.display = 'none';
         const oldName = getActiveListName();
+        if (!Object.prototype.hasOwnProperty.call(getLists(), oldName)) return;
         const newName = prompt("Rename list:", oldName);
 
         if (newName !== null && newName.trim() !== '' && newName.trim() !== oldName) {
@@ -669,5 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             chrome.storage.local.set(updates);
         }
-    });
+    };
+    menuRenameButton.addEventListener('click', renameList);
+    renameListButton.addEventListener('click', renameList);
 });

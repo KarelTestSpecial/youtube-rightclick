@@ -7,7 +7,7 @@ const path = require('node:path');
 const popupSource = fs.readFileSync(path.join(__dirname, '../youtube-rightclick/popup.js'), 'utf8');
 const popupHtml = fs.readFileSync(path.join(__dirname, '../youtube-rightclick/popup.html'), 'utf8');
 
-function openPopup(storedData, clipboardWrite = async () => {}, downloadError = null) {
+function openPopup(storedData, clipboardWrite = async () => {}, downloadError = null, promptValue = null) {
     const elements = new Map();
     const listeners = {};
     const alerts = [];
@@ -15,6 +15,8 @@ function openPopup(storedData, clipboardWrite = async () => {}, downloadError = 
     const downloads = [];
     const blobs = [];
     const revokedUrls = [];
+    const updates = [];
+    const prompts = [];
     const element = id => {
         if (!elements.has(id)) {
             const handlers = {};
@@ -37,7 +39,7 @@ function openPopup(storedData, clipboardWrite = async () => {}, downloadError = 
     };
     const chrome = {
         storage: {
-            local: { get(defaults, callback) { callback({ ...defaults, ...storedData }); }, set() {} },
+            local: { get(defaults, callback) { callback({ ...defaults, ...storedData }); }, set(value) { updates.push(value); } },
             onChanged: { addListener(handler) { storageChange = handler; } }
         },
         tabs: { query(query, callback) { callback([]); } },
@@ -57,12 +59,13 @@ function openPopup(storedData, clipboardWrite = async () => {}, downloadError = 
         },
         navigator: { clipboard: { writeText: clipboardWrite } },
         alert: message => alerts.push(message),
+        prompt: (message, value) => { prompts.push({ message, value }); return promptValue; },
         setTimeout: callback => timers.push(callback),
         console: { error() {} }
     };
     vm.runInNewContext(popupSource, context);
     listeners.DOMContentLoaded();
-    return { element, alerts, timers, storageChange, downloads, blobs, revokedUrls };
+    return { element, alerts, timers, storageChange, downloads, blobs, revokedUrls, updates, prompts };
 }
 
 test('exports every video and channel list as one TSV table without modifying data', async () => {
@@ -143,8 +146,47 @@ test('export actions share an equal-width three-column grid in the requested ord
         .map(([, id, label]) => [id, label]);
     assert.deepEqual(buttons, [
         ['downloadButton', 'Download List'], ['copyButton', 'Copy List'], ['clearButton', 'Clear List'],
-        ['downloadAllListsButton', 'Download All Lists'], ['copyAllListsButton', 'Copy All Lists']
+        ['downloadAllListsButton', 'Download All Lists'], ['copyAllListsButton', 'Copy All Lists'],
+        ['renameListButton', 'Rename List']
     ]);
+});
+
+test('rename button and context menu rename the selected list in both modes', () => {
+    const stored = {
+        videoLists: { Before: [{ title: 'Video', url: 'v' }], Other: [] }, activeVideoList: 'Before',
+        channelLists: { Channel: [{ title: 'Channel', url: 'c' }] }, activeChannelList: 'Channel', mode: 'video'
+    };
+    for (const [mode, button, activeKey, listsKey, oldName] of [
+        ['video', 'renameListButton', 'activeVideoList', 'videoLists', 'Before'],
+        ['channel', 'renameListButton', 'activeChannelList', 'channelLists', 'Channel'],
+        ['video', 'menuRenameButton', 'activeVideoList', 'videoLists', 'Before']
+    ]) {
+        const popup = openPopup({ ...stored, mode }, undefined, null, ' New name ');
+        assert.equal(popup.element('renameListButton').disabled, false);
+        popup.element(button).handlers.click();
+        assert.equal(popup.prompts[0].value, oldName);
+        assert.equal(popup.updates.length, 1);
+        assert.equal(popup.updates[0][activeKey], 'New name');
+        assert.deepEqual(JSON.parse(JSON.stringify(popup.updates[0][listsKey]['New name'])), stored[listsKey][oldName]);
+        assert.equal(Object.hasOwn(popup.updates[0][listsKey], oldName), false);
+        assert.deepEqual(Object.keys(popup.updates[0][listsKey]), Object.keys(stored[listsKey]).map(key => key === oldName ? 'New name' : key));
+    }
+});
+
+test('rename button rejects duplicates, cancellations, and missing selected lists', () => {
+    const stored = { videoLists: { Before: [], Other: [] }, activeVideoList: 'Before' };
+    const duplicate = openPopup(stored, undefined, null, 'Other');
+    duplicate.element('renameListButton').handlers.click();
+    assert.equal(duplicate.updates.length, 0);
+    assert.equal(duplicate.alerts.length, 1);
+    const cancelled = openPopup(stored);
+    cancelled.element('renameListButton').handlers.click();
+    assert.equal(cancelled.updates.length, 0);
+    const missing = openPopup({ videoLists: {}, activeVideoList: '' });
+    assert.equal(missing.element('renameListButton').disabled, true);
+    missing.element('renameListButton').handlers.click();
+    assert.equal(missing.prompts.length, 0);
+    assert.equal(missing.updates.length, 0);
 });
 
 test('download uses the same TSV as copy for all video and channel lists', async () => {
