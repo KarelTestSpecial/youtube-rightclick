@@ -215,8 +215,15 @@
 
     .export-actions {
       display: grid;
-      grid-template-columns: max-content max-content max-content;
+      flex: 1;
+      min-width: 0;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 6px;
+    }
+
+    .export-actions button {
+      padding: 8px 4px;
+      font-size: 12px;
     }
 
     #sheetsLink {

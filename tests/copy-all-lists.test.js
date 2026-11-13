@@ -135,8 +135,8 @@ test('both all-list actions are initially disabled in the popup markup', () => {
     assert.match(popupHtml, /<button id="downloadAllListsButton" disabled\b/);
 });
 
-test('export actions share a three-column grid in the requested order', () => {
-    assert.match(popupHtml, /\.export-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*max-content\s+max-content\s+max-content;/);
+test('export actions share an equal-width three-column grid in the requested order', () => {
+    assert.match(popupHtml, /\.export-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/);
     const grid = popupHtml.match(/<div class="export-actions">([\s\S]*?)<\/div>/);
     assert.ok(grid);
     const buttons = [...grid[1].matchAll(/<button id="([^"]+)"[^>]*>([^<]+)<\/button>/g)]
