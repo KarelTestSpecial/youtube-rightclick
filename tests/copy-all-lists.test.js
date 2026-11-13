@@ -7,11 +7,14 @@ const path = require('node:path');
 const popupSource = fs.readFileSync(path.join(__dirname, '../youtube-rightclick/popup.js'), 'utf8');
 const popupHtml = fs.readFileSync(path.join(__dirname, '../youtube-rightclick/popup.html'), 'utf8');
 
-function openPopup(storedData, clipboardWrite = async () => {}) {
+function openPopup(storedData, clipboardWrite = async () => {}, downloadError = null) {
     const elements = new Map();
     const listeners = {};
     const alerts = [];
     const timers = [];
+    const downloads = [];
+    const blobs = [];
+    const revokedUrls = [];
     const element = id => {
         if (!elements.has(id)) {
             const handlers = {};
@@ -37,17 +40,29 @@ function openPopup(storedData, clipboardWrite = async () => {}) {
             local: { get(defaults, callback) { callback({ ...defaults, ...storedData }); }, set() {} },
             onChanged: { addListener(handler) { storageChange = handler; } }
         },
-        tabs: { query(query, callback) { callback([]); } }
+        tabs: { query(query, callback) { callback([]); } },
+        runtime: { lastError: null },
+        downloads: { download(options, callback) {
+            downloads.push(options);
+            chrome.runtime.lastError = downloadError;
+            callback();
+            chrome.runtime.lastError = null;
+        } }
     };
     const context = {
-        document, chrome, navigator: { clipboard: { writeText: clipboardWrite } },
+        document, chrome, Blob,
+        URL: {
+            createObjectURL(blob) { blobs.push(blob); return `blob:test-${blobs.length}`; },
+            revokeObjectURL(url) { revokedUrls.push(url); }
+        },
+        navigator: { clipboard: { writeText: clipboardWrite } },
         alert: message => alerts.push(message),
         setTimeout: callback => timers.push(callback),
         console: { error() {} }
     };
     vm.runInNewContext(popupSource, context);
     listeners.DOMContentLoaded();
-    return { element, alerts, timers, storageChange };
+    return { element, alerts, timers, storageChange, downloads, blobs, revokedUrls };
 }
 
 test('exports every video and channel list as one TSV table without modifying data', async () => {
@@ -115,6 +130,59 @@ test('clipboard failures are reported instead of showing success', async () => {
     assert.equal(popup.alerts.length, 1);
 });
 
-test('the new action is initially disabled in the popup markup', () => {
+test('both all-list actions are initially disabled in the popup markup', () => {
     assert.match(popupHtml, /<button id="copyAllListsButton" disabled\b/);
+    assert.match(popupHtml, /<button id="downloadAllListsButton" disabled\b/);
+});
+
+test('download uses the same TSV as copy for all video and channel lists', async () => {
+    const stored = {
+        videoLists: {
+            Empty: [],
+            'List\tA': [{ title: 'A "quoted"\ntitle', url: 'https://youtube.com/watch?v=1' }]
+        },
+        activeVideoList: 'Empty',
+        channelLists: { 'List A': [{ title: 'Kanaal é', url: 'https://youtube.com/@channel' }] },
+        activeChannelList: 'List A', mode: 'video'
+    };
+    const original = JSON.stringify(stored);
+    let copied;
+    const popup = openPopup(stored, async text => { copied = text; });
+    assert.equal(popup.element('downloadButton').disabled, true);
+    assert.equal(popup.element('downloadAllListsButton').disabled, false);
+    await popup.element('copyAllListsButton').handlers.click();
+    popup.element('downloadAllListsButton').handlers.click();
+    assert.equal(popup.downloads.length, 1);
+    assert.equal(popup.downloads[0].filename, 'all-lists.tsv');
+    assert.equal(popup.downloads[0].saveAs, true);
+    assert.equal(popup.downloads[0].url, 'blob:test-1');
+    assert.equal(popup.blobs[0].type, 'text/tab-separated-values;charset=utf-8');
+    assert.equal(await popup.blobs[0].text(), copied);
+    assert.deepEqual(popup.revokedUrls, ['blob:test-1']);
+    assert.equal(JSON.stringify(stored), original);
+});
+
+test('download button follows changes in both modes and skips empty exports', () => {
+    const popup = openPopup({
+        videoLists: { Empty: [] }, activeVideoList: 'Empty',
+        channelLists: { Other: [{ title: 'Channel', url: 'url' }] }, activeChannelList: 'Other',
+        mode: 'video'
+    });
+    assert.equal(popup.element('downloadAllListsButton').disabled, false);
+    popup.storageChange({ channelLists: { newValue: { Other: [] } } }, 'local');
+    assert.equal(popup.element('downloadAllListsButton').disabled, true);
+    popup.element('downloadAllListsButton').handlers.click();
+    assert.equal(popup.downloads.length, 0);
+    popup.storageChange({ videoLists: { newValue: { Empty: [{ title: 'Video', url: 'url' }] } }, mode: { newValue: 'channel' } }, 'local');
+    assert.equal(popup.element('downloadAllListsButton').disabled, false);
+});
+
+test('download includes legacy video lists and reports download errors', async () => {
+    const popup = openPopup({ lists: { Old: [{ title: 'Legacy', url: 'url' }] }, activeList: 'Old' },
+        async () => {}, { message: 'Download failed' });
+    assert.equal(popup.element('downloadAllListsButton').disabled, false);
+    popup.element('downloadAllListsButton').handlers.click();
+    assert.equal(await popup.blobs[0].text(), 'Type\tList\tTitle\tURL\nVideo\tOld\tLegacy\turl');
+    assert.equal(popup.alerts.length, 1);
+    assert.deepEqual(popup.revokedUrls, ['blob:test-1']);
 });

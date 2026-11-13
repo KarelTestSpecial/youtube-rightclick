@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyButton = document.getElementById('copyButton');
     const copyAllListsButton = document.getElementById('copyAllListsButton');
     const downloadButton = document.getElementById('downloadButton');
+    const downloadAllListsButton = document.getElementById('downloadAllListsButton');
     const clearButton = document.getElementById('clearButton');
     const addPositionToggle = document.getElementById('addPositionToggle');
     const toggleLabel = document.getElementById('toggleLabel');
@@ -60,8 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Update Button States
         const isListEmpty = currentItems.length === 0;
         copyButton.disabled = isListEmpty;
-        copyAllListsButton.disabled = ![...Object.values(state.videoLists), ...Object.values(state.channelLists)]
+        const areAllListsEmpty = ![...Object.values(state.videoLists), ...Object.values(state.channelLists)]
             .some(items => items.length > 0);
+        copyAllListsButton.disabled = areAllListsEmpty;
+        downloadAllListsButton.disabled = areAllListsEmpty;
         downloadButton.disabled = isListEmpty;
         clearButton.disabled = isListEmpty;
         deleteListButton.disabled = listNames.length <= 1;
@@ -320,8 +323,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Copy both video and channel lists as one spreadsheet-friendly table.
-    copyAllListsButton.addEventListener('click', async () => {
+    // Format both video and channel lists as one spreadsheet-friendly table.
+    const formatAllListsAsTsv = () => {
         const rows = [['Type', 'List', 'Title', 'URL']];
         for (const [type, lists] of [['Video', state.videoLists], ['Channel', state.channelLists]]) {
             for (const [name, items] of Object.entries(lists)) {
@@ -335,7 +338,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const text = String(value ?? '');
             return /[\t\r\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
         };
-        const tsvContent = rows.map(row => row.map(escapeField).join('\t')).join('\n');
+        return rows.map(row => row.map(escapeField).join('\t')).join('\n');
+    };
+
+    // Copy both video and channel lists.
+    copyAllListsButton.addEventListener('click', async () => {
+        const tsvContent = formatAllListsAsTsv();
+        if (!tsvContent) return;
 
         try {
             await navigator.clipboard.writeText(tsvContent);
@@ -344,6 +353,28 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Failed to copy all lists: ', err);
             alert('Could not copy the lists to the clipboard. Please try again.');
+        }
+    });
+
+    // Download the same table used by Copy All Lists as a single TSV file.
+    downloadAllListsButton.addEventListener('click', () => {
+        const content = formatAllListsAsTsv();
+        if (!content) return;
+
+        const url = URL.createObjectURL(new Blob([content], { type: 'text/tab-separated-values;charset=utf-8' }));
+        try {
+            chrome.downloads.download({ url, filename: 'all-lists.tsv', saveAs: true }, () => {
+                const error = chrome.runtime.lastError;
+                URL.revokeObjectURL(url);
+                if (error) {
+                    console.error('Failed to download all lists: ', error);
+                    alert('Could not download the lists. Please try again.');
+                }
+            });
+        } catch (err) {
+            URL.revokeObjectURL(url);
+            console.error('Failed to download all lists: ', err);
+            alert('Could not download the lists. Please try again.');
         }
     });
 
