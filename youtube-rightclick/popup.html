@@ -214,13 +214,8 @@
     }
 
     .export-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .export-actions-row {
-      display: flex;
+      display: grid;
+      grid-template-columns: max-content max-content max-content;
       gap: 6px;
     }
 
@@ -330,15 +325,11 @@
 
   <div class="bottom-actions">
     <div class="export-actions">
-      <div class="export-actions-row">
-        <button id="downloadButton">Download List</button>
-        <button id="copyButton">Copy List</button>
-        <button id="clearButton">Clear List</button>
-      </div>
-      <div class="export-actions-row">
-        <button id="downloadAllListsButton" disabled title="Download all video and channel lists as one spreadsheet table">Download All Lists</button>
-        <button id="copyAllListsButton" disabled title="Copy all video and channel lists as one spreadsheet table">Copy All Lists</button>
-      </div>
+      <button id="downloadButton">Download List</button>
+      <button id="copyButton">Copy List</button>
+      <button id="clearButton">Clear List</button>
+      <button id="downloadAllListsButton" disabled title="Download all video and channel lists as one spreadsheet table">Download All Lists</button>
+      <button id="copyAllListsButton" disabled title="Copy all video and channel lists as one spreadsheet table">Copy All Lists</button>
     </div>
     <a href="https://sheets.google.com" target="_blank" id="sheetsLink" title="Open Google Sheets">
       <img src="images/google-sheets.svg" alt="Open Google Sheets">

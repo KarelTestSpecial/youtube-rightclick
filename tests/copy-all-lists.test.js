@@ -135,15 +135,14 @@ test('both all-list actions are initially disabled in the popup markup', () => {
     assert.match(popupHtml, /<button id="downloadAllListsButton" disabled\b/);
 });
 
-test('export actions appear in the requested two rows', () => {
-    const rows = [...popupHtml.matchAll(/<div class="export-actions-row">([\s\S]*?)<\/div>/g)];
-    assert.equal(rows.length, 2);
-    const buttons = row => [...row.matchAll(/<button id="([^"]+)"[^>]*>([^<]+)<\/button>/g)]
+test('export actions share a three-column grid in the requested order', () => {
+    assert.match(popupHtml, /\.export-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*max-content\s+max-content\s+max-content;/);
+    const grid = popupHtml.match(/<div class="export-actions">([\s\S]*?)<\/div>/);
+    assert.ok(grid);
+    const buttons = [...grid[1].matchAll(/<button id="([^"]+)"[^>]*>([^<]+)<\/button>/g)]
         .map(([, id, label]) => [id, label]);
-    assert.deepEqual(buttons(rows[0][1]), [
-        ['downloadButton', 'Download List'], ['copyButton', 'Copy List'], ['clearButton', 'Clear List']
-    ]);
-    assert.deepEqual(buttons(rows[1][1]), [
+    assert.deepEqual(buttons, [
+        ['downloadButton', 'Download List'], ['copyButton', 'Copy List'], ['clearButton', 'Clear List'],
         ['downloadAllListsButton', 'Download All Lists'], ['copyAllListsButton', 'Copy All Lists']
     ]);
 });
