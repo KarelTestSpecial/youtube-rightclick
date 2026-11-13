@@ -209,7 +209,14 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
       margin-top: 10px;
+    }
+
+    .export-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
     }
 
     #sheetsLink {
@@ -316,10 +323,11 @@
   </div>
 
   <div class="bottom-actions">
-    <div>
+    <div class="export-actions">
       <button id="downloadButton">Download List</button>
       <button id="clearButton">Clear This List</button>
       <button id="copyButton">Copy to Clipboard</button>
+      <button id="copyAllListsButton" disabled title="Copy all video and channel lists as one spreadsheet table">Copy All Lists</button>
     </div>
     <a href="https://sheets.google.com" target="_blank" id="sheetsLink" title="Open Google Sheets">
       <img src="images/google-sheets.svg" alt="Open Google Sheets">
