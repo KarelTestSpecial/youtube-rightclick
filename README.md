@@ -14,7 +14,8 @@ A powerful browser extension designed for content curators, researchers, and any
     - Create new lists and delete old ones.
     - Manually add the video you're currently watching.
 - **Flexible Export Options:**
-    - **Copy to Clipboard:** Copies your list in a spreadsheet-friendly TSV (Tab-Separated Values) format (`Title\tURL`).
+    - **Copy to Clipboard:** Copies the selected list in a spreadsheet-friendly TSV (Tab-Separated Values) format (`Title\tURL`).
+    - **Copy All Lists:** Copies every video and channel list together as one TSV table (`Type\tList\tTitle\tURL`), ready to paste into a single worksheet. Each entry keeps its list name and type; empty lists have no rows.
     - **Download as File:** Save your current video list as a `.txt` file for your records.
 - **In-List Actions:** Click any video in the popup to open a context menu to either navigate to the video's URL or remove it from the list.
 - **Privacy-Focused:** All your data is stored locally and privately on your computer. Nothing is ever tracked or sent to a server.
@@ -33,7 +34,7 @@ A powerful browser extension designed for content curators, researchers, and any
 
 3.  **Viewing and Exporting:**
     - **View:** Your saved videos for the active list are displayed in the text area.
-    - **Copy:** Click "Copy to Clipboard" to copy the entire list.
+    - **Copy:** Click "Copy to Clipboard" to copy the selected list, or "Copy All Lists" to copy all video and channel lists together. Paste the result into a spreadsheet starting in one cell.
     - **Download:** Click "Download List" to save the list as a `.txt` file.
     - **Clear:** Click "Clear This List" to permanently delete all videos from the active list.
 

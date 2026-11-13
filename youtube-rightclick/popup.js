@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addCurrentVideoButton = document.getElementById('addCurrentVideoButton');
     const videoOutput = document.getElementById('videoOutput');
     const copyButton = document.getElementById('copyButton');
+    const copyAllListsButton = document.getElementById('copyAllListsButton');
     const downloadButton = document.getElementById('downloadButton');
     const clearButton = document.getElementById('clearButton');
     const addPositionToggle = document.getElementById('addPositionToggle');
@@ -59,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Update Button States
         const isListEmpty = currentItems.length === 0;
         copyButton.disabled = isListEmpty;
+        copyAllListsButton.disabled = ![...Object.values(state.videoLists), ...Object.values(state.channelLists)]
+            .some(items => items.length > 0);
         downloadButton.disabled = isListEmpty;
         clearButton.disabled = isListEmpty;
         deleteListButton.disabled = listNames.length <= 1;
@@ -315,6 +318,33 @@ document.addEventListener('DOMContentLoaded', () => {
             document.execCommand('copy');
             videoOutput.value = originalContent; // Restore original view
         });
+    });
+
+    // Copy both video and channel lists as one spreadsheet-friendly table.
+    copyAllListsButton.addEventListener('click', async () => {
+        const rows = [['Type', 'List', 'Title', 'URL']];
+        for (const [type, lists] of [['Video', state.videoLists], ['Channel', state.channelLists]]) {
+            for (const [name, items] of Object.entries(lists)) {
+                for (const item of items) rows.push([type, name, item.title, item.url]);
+            }
+        }
+        if (rows.length === 1) return;
+
+        // Spreadsheet TSV uses double quotes around fields containing tabs, line breaks or quotes.
+        const escapeField = (value) => {
+            const text = String(value ?? '');
+            return /[\t\r\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        };
+        const tsvContent = rows.map(row => row.map(escapeField).join('\t')).join('\n');
+
+        try {
+            await navigator.clipboard.writeText(tsvContent);
+            copyAllListsButton.textContent = 'Copied!';
+            setTimeout(() => { copyAllListsButton.textContent = 'Copy All Lists'; }, 1500);
+        } catch (err) {
+            console.error('Failed to copy all lists: ', err);
+            alert('Could not copy the lists to the clipboard. Please try again.');
+        }
     });
 
     // Download the active list as a text file
