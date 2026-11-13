@@ -151,6 +151,11 @@ test('export actions share an equal-width three-column grid in the requested ord
     ]);
 });
 
+test('disabled grid buttons keep the common background and distinct text color', () => {
+    assert.match(popupHtml, /button\s*\{[^}]*background-color:\s*var\(--secondary-color\);/);
+    assert.match(popupHtml, /\.export-actions button:disabled\s*\{[^}]*background-color:\s*var\(--secondary-color\);[^}]*color:\s*#c2c2c6;/);
+});
+
 test('rename button and context menu rename the selected list in both modes', () => {
     const stored = {
         videoLists: { Before: [{ title: 'Video', url: 'v' }], Other: [] }, activeVideoList: 'Before',
